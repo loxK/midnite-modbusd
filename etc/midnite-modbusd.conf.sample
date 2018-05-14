@@ -1,0 +1,22 @@
+# CONFIG FILE FOR MIDNITE-MODBUSD
+
+# IP address of the Midnite Classic
+classic_ip
+
+# Port of the Midnite Classic
+classic_port     502
+
+# sample interval is in millseconds
+#   minimum 100ms
+#   maximum 15000ms
+#   recomended 1000ms
+sample_interval  1000
+
+# Data directory is where the Classic pulled data will be stored, default
+# to working_dir/status
+# data_dir  /var/lib/midnite-modbusd/status
+
+# NOT USED
+# datapts         vbat,vpv, iout,stge,ipv, tbat,tfet,iwb, soc
+# log registers is for the single data file. (10regs max)
+# log_registers    4115,4116,4117,4120,4121,4132,4133,4371,4373
