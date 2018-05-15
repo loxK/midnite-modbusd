@@ -1,0 +1,12 @@
+[Unit]
+Description=Midnite Classic modbus data polling
+After=network.target
+
+[Service]
+Type=simple
+User=midnite-modbusd
+ExecStart=/usr/local/bin/midnite-modbusd
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

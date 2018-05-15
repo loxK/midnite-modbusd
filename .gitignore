@@ -1,8 +1,5 @@
 /node_modules
 /vendor
-/etc
-!etc/midnite-modbusd.conf.sample
-
-
+/etc/midnite-modbusd.conf
 
 .idea
