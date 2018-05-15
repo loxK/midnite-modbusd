@@ -796,7 +796,6 @@ class Classic {
             if ( ! $line || preg_match( "/^[\[-]/", $line ) ) {
                 continue;
             }
-            echo $line . "\n";
             list( $register, $value ) = explode( ":", $line );
             $this->registers[ $register ] = $value;
         }
