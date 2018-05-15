@@ -271,7 +271,7 @@ void init(void) {
 
 	if (stat(data_dir, &st) == -1) {
 		sprintf(str,"Creating data directory: %s.\n",data_dir);
-		log_message_error(log_file_path,(char*)str);
+		log_message_warning(log_file_path,(char*)str);
 		mkdir(data_dir, 0775);
 	}
 	if (stat(data_dir, &st) == -1) {log_message_error(log_file_path,(char*)"Data directory create failed.");exit(1);}
