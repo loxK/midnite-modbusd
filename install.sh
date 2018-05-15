@@ -22,5 +22,5 @@ chmod +x /usr/local/bin/newmodbus
 chmod +x /usr/local/bin/midnite-classic-data
 
 echo "Copy /etc/midnite-modbusd.conf.sample to /etc/midnite-modbusd.conf and configure it"
-echo "Then service start midnite-modbusd.service"
+echo "Then systemctl start midnite-modbusd.service"
 exit 0
