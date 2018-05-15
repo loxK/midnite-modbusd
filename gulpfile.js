@@ -32,5 +32,8 @@ gulp.task('watch', function () {
     gulp.watch('src/**/*.php', ['build:phar']);
 });
 
+gulp.task('build', ['build:newmodbus', 'build:modbusd', 'build:phar'], function () {
+});
+
 gulp.task('default', ['build:newmodbus', 'build:modbusd', 'build:phar', 'watch'], function () {
 });
