@@ -1,13 +1,13 @@
 
 /**
- * NEWMODBUSD
- *
- * Daemon version of RossW's newmodbus C command line tool.
- *
- * License: GPLv3
- * Revision: $Rev$
- *
- **/
+* Midnite-newmobusd
+*
+* Daemon version of RossW's newmodbus C command line tool.
+*
+* License: GPLv3
+* Revision: $Rev$
+*
+**/
 
 #include <stdio.h>
 #include <string.h>
@@ -29,6 +29,12 @@
 
 #define VERSION 	"1.0"
 #define DISABLED_FILE	"modbusd.disabled"
+
+#define LOG_ERR     3   /* error conditions */
+#define LOG_WARN    4   /* warning conditions */
+#define LOG_INFO    6   /* informational */
+#define LOG_DEBUG   7   /* informational */
+#define LOG_PERROR  0x20    /* log to stderr as well */
 
 int debug = 0;
 
@@ -64,72 +70,68 @@ int rs[21];            //log registers
 int len;		       //length of received data
 int addr;              //regsiter iterator
 
-
-
 //functions
 int dotask(void);
 int modbus_read_registers(int addr, int number, int offset);
 int classic_connect(void);
 unsigned int modbus_register(int reg);
 void init(void);
-void daemonize(void);
-void log_message(char *filename, char *message);
-void signal_handler(int sig);
+void log_message(char *filename, char *message, int level);
+void log_message_info(char *filename, char *message);
+void log_message_debug(char *filename, char *message);
+void log_message_warning(char *filename, char *message);
+void log_message_error(char *filename, char *message);
 
 //Register 4391 prerounded wbjr
 //Register 4373 is the SOC%
 
-
 /**
- * MAIN
- * @arg nil
- * @return nil
- *
- */
+* MAIN
+* @arg nil
+* @return nil
+*
+*/
 int main(int argc, char **argv) {
 
 	register int op;
 	while ((op = getopt(argc, argv, "c:l:r:w:dh")) != EOF)
 	{
-        if(debug>1) printf("scan %c\n",op);
-        switch (op)
-        {
-            case 'c':	/* Configuration file path */
-                config_file_path=optarg;
-                break;
-            case 'd':	/* Configuration file path */
-                debug++;
-                break;
-            case 'l':	/* Log file path. */
-                log_file_path= optarg;
-                break;
-            case 'k':	/* Lock file path */
-                lock_file_path= optarg;
-                break;
-            case 'w':	/* Lock file path */
-                working_dir= optarg;
-                break;
+		if(debug>1) printf("<%i>scan %c\n", LOG_DEBUG, op);
+		switch (op)
+		{
+			case 'c':	/* Configuration file path */
+			config_file_path=optarg;
+			break;
+			case 'd':	/* Configuration file path */
+			debug++;
+			break;
+			case 'l':	/* Log file path. */
+			log_file_path= optarg;
+			break;
+			case 'k':	/* Lock file path */
+			lock_file_path= optarg;
+			break;
+			case 'w':	/* Lock file path */
+			working_dir= optarg;
+			break;
 
-            case 'h':	/* help */
-            default:
-                printf("Usage: %s [dh] [-cklw value]\n",argv[0]);
-                printf("  -c Path  Path to the configuration file. [default: /etc/midnite-modbusd.conf].\n");
-                printf("  -d       Debugging. Repeat to be more verbose.\n");
-                printf("  -k Path  Lock file path. [default: /var/run/midnite-modbusd.log]\n");
-                printf("  -l Path  Sets log file path. [default: none]\n");
-                printf("  -w Path  Sets working directory. [default: /var/lib/midnite-modbusd]\n");
-                printf("  -h       Display this help message\n");
-                exit(0);
-        }
+			case 'h':	/* help */
+			default:
+			printf("Usage: %s [dh] [-cklw value]\n",argv[0]);
+			printf("  -c Path  Path to the configuration file. [default: /etc/midnite-modbusd.conf].\n");
+			printf("  -d       Debugging. Repeat to be more verbose.\n");
+			printf("  -k Path  Lock file path. [default: /var/run/midnite-modbusd.log]\n");
+			printf("  -l Path  Sets log file path. [default: none]\n");
+			printf("  -w Path  Sets working directory. [default: /var/lib/midnite-modbusd]\n");
+			printf("  -h       Display this help message\n");
+			exit(0);
+		}
 	}
 
-	if(debug>1) printf("Command line scanned\n");
+	if(debug>1) printf("<%i>Command line scanned\n", LOG_DEBUG);
 
 	//parse config and check dependencys
 	init();
-
-	//start daemon
-	// if (!debug) daemonize();
 
 	while (1) {
 
@@ -148,7 +150,7 @@ int main(int argc, char **argv) {
 		sprintf(dfile, "%s/%04d-%02d-%02d.txt", data_dir,lt->tm_year+1900,lt->tm_mon+1,lt->tm_mday);
 		fp_l= fopen(dfile,"a");
 		if (fp_l<0) {
-			log_message(log_file_path, (char*)"Data file write error");
+			log_message_error(log_file_path, (char*)"Data file write error");
 			exit(1);
 		}
 
@@ -156,7 +158,7 @@ int main(int argc, char **argv) {
 		sprintf(dfile, "%s/tempdata.txt", data_dir);
 		fp_t= fopen(dfile,"w");
 		if (fp_t<0) {
-			log_message(log_file_path, (char*)"Temp file write error");
+			log_message_error(log_file_path, (char*)"Temp file write error");
 			exit(1);
 		}
 
@@ -168,6 +170,11 @@ int main(int argc, char **argv) {
 		r= dotask(); //r is the error code
 
 		if (debug) printf("[%02d:%02d:%02d] - %d\n",lt->tm_hour,lt->tm_min,lt->tm_sec,r);
+
+		if(r) {
+
+		}
+
 
 		//entry endings
 		fprintf(fp_l, "\n");
@@ -194,51 +201,51 @@ int main(int argc, char **argv) {
 }
 
 /**
- * INIT
- * Parses config file, and checks logfile, and data writability.
- *
- * @arg nil
- * @return nil
- *
- **/
+* INIT
+* Parses config file, and checks logfile, and data writability.
+*
+* @arg nil
+* @return nil
+*
+**/
 void init(void) {
 
-	printf("Midnite-modbusd Version %s\n", VERSION);
+	char str[80];
+
+	sprintf(str, "Midnite-modbusd Version %s.", VERSION);
+	log_message_info(log_file_path,(char*)str);
 
 	char line[90];
 	FILE *fp_c;
 
-    strcpy(data_dir, working_dir);
-
-	//already running
-	if (getppid()==1) {
-		printf("Daemon aready running\n");
-		return;
-	}
+	strcpy(data_dir, working_dir);
 
 	//get working directory/pwd
 	if (chdir(working_dir) == -1) {
-		printf("Get working dir failed\n");
+		sprintf(str, "Get working dir failed.");
+		log_message_error(log_file_path,(char*)str);
 		exit(1);
 	}
 
 	//parse config file
-	printf("Parsing config file: %s\n",config_file_path);
+	sprintf(str, "Parsing config file: %s.", config_file_path);
+	log_message_info(log_file_path,(char*)str);
 
 	fp_c= fopen(config_file_path, "rt");
 	if (!fp_c) {
-		printf("Config file not found\n");
+		sprintf(str, "Config file not found.");
+		log_message_error(log_file_path,(char*)str);
 		exit(1);
 	}
 
 	while (fgets(line, 80, fp_c) != NULL) {
 		char *p = line;
 		while (isspace (*p))    /* advance to first non-whitespace  */
-            p++;
+		p++;
 
-    /* skip lines beginning with '#' or '@' or blank lines  */
-    if (*p == '#' || *p == '@' || !*p)
-    	continue;
+		/* skip lines beginning with '#' or '@' or blank lines  */
+		if (*p == '#' || *p == '@' || !*p)
+		continue;
 
 		if      (strstr(line,"classic_ip"))      sscanf(line, "%*s %15s", host);
 		else if (strstr(line,"data_dir"))        sscanf(line, "%*s %59s", data_dir);
@@ -247,38 +254,43 @@ void init(void) {
 		else if (strstr(line,"log_registers"))   sscanf(line, "%*s %d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &rs[0],&rs[1],&rs[2],&rs[3],&rs[4],&rs[5],&rs[6],&rs[7],&rs[8],&rs[9]);
 	}
 	fclose(fp_c);
-	if (strlen(host)<7)         {printf("Invalid classic_ip\n");exit(1);}
-	if (strlen(data_dir)<7)     {printf("Invalid data_dir\n");exit(1);}
-	if (port <=0)               {printf("Invalid classic_port\n");exit(1);}
-	if (interval<1000)          {printf("Invalid sample_interval\n");exit(1);}
-	if (interval>60000)         {printf("Invalid sample_interval\n");exit(1);}
-	printf("Config ok: %s:%d @ %d ms\n",host,port,interval);
+	if (strlen(host)<7)         {log_message_error(log_file_path,(char*)"Invalid classic_ip.");exit(1);}
+	if (strlen(data_dir)<7)     {log_message_error(log_file_path,(char*)"Invalid data_dir.");exit(1);}
+	if (port <=0)               {log_message_error(log_file_path,(char*)"Invalid classic_port.");exit(1);}
+	if (interval<1000)          {log_message_error(log_file_path,(char*)"Invalid sample_interval.");exit(1);}
+	if (interval>60000)         {log_message_error(log_file_path,(char*)"Invalid sample_interval.");exit(1);}
+
+	sprintf(str, "Config ok: %s:%d @ %d ms",host,port,interval);
+	log_message_info(log_file_path,(char*)str);
 
 	//check dataroot directory
-	if (stat(data_dir, &st) == -1) {printf("Data directory does not exist\n");exit(1);}
+	if (stat(data_dir, &st) == -1) {log_message_error(log_file_path,(char*)"Data directory does not exist.");exit(1);}
 
 	//check (or create) bb  directory
 	sprintf(data_dir, "%s/stats/", working_dir);
 
 	if (stat(data_dir, &st) == -1) {
-		printf("Creating data directory: %s\n",data_dir);
+		sprintf(str,"Creating data directory: %s.\n",data_dir);
+		log_message_error(log_file_path,(char*)str);
 		mkdir(data_dir, 0775);
 	}
-	if (stat(data_dir, &st) == -1) {printf("Data directory create failed\n");exit(1);}
+	if (stat(data_dir, &st) == -1) {log_message_error(log_file_path,(char*)"Data directory create failed.");exit(1);}
 
-	log_message(log_file_path,(char*)"Daemon starting...");
+	log_message_info(log_file_path,(char*)"Starting...");
 }
 
 /**
- * DOTASK
- * Reads classic once per interval. Creates socket if not already open.
- * Reads entire modbus range, and writes to data file.
- *
- * @arg nil
- * @return (int) 0 good read, 1 partial read, 2 bad read
- *
- **/
+* DOTASK
+* Reads classic once per interval. Creates socket if not already open.
+* Reads entire modbus range, and writes to data file.
+*
+* @arg nil
+* @return (int) 0 good read, 1 partial read, 2 bad read
+*
+**/
 int dotask(void){
+
+	char str[80];
 
 	//to allow local app to run:
 	//presence of DISABLE file disconnects the modbus connection
@@ -286,6 +298,7 @@ int dotask(void){
 	sprintf(disabled_file,  "%s/%s", working_dir, DISABLED_FILE);
 
 	if (stat(disabled_file, &st) != -1) {
+		log_message_warning(log_file_path, (char*)"Disabled file found, disconnecting.");
 		if (sock) {	close(sock); sock=0; } //if still open, disconnect
 		return(9);                         //skip this sample regardless
 	}
@@ -306,14 +319,15 @@ int dotask(void){
 	//however we need to consider pre 1609 firmware, todo
 	if (i) {
 		close(sock); sock=0; //this will force a new socket attempt next interval
-		log_message(log_file_path, (char*)"Modbus read error");
+		sprintf(str, "Modbus read error: %i.", i);
+		log_message_warning(log_file_path, (char*)str);
 		return(i);
 	}
 
 	for (addr=4101; addr<=16390; addr++) {
-	    if( addr > 4395 && addr < 16385 ) {
-    	        continue;
-    	}
+		if( addr > 4395 && addr < 16385 ) {
+			continue;
+		}
 		i= modbus_register(addr);
 
 		//all to 'current' data file
@@ -336,16 +350,16 @@ int dotask(void){
 
 
 /**
- * MODBUS_READ_REGISTERS
- * Reads modbus registers via network socket
- * Store in buffer array.
- *
- * @arg: (int) addr   , starting *register*
- * @arg: (int) number , number of 16-bit registers to read
- * @arg: (int) offset , where registers to be stored in the buffer
- * @return (int) 0 ok, >0 fail
- *
- */
+* MODBUS_READ_REGISTERS
+* Reads modbus registers via network socket
+* Store in buffer array.
+*
+* @arg: (int) addr   , starting *register*
+* @arg: (int) number , number of 16-bit registers to read
+* @arg: (int) offset , where registers to be stored in the buffer
+* @return (int) 0 ok, >0 fail
+*
+*/
 int modbus_read_registers(int addr, int number, int offset) {
 	id[0]=0;               // Transaction ID MSB
 	id[1]=2;               // Transaction ID LSB
@@ -385,22 +399,20 @@ int modbus_read_registers(int addr, int number, int offset) {
 }
 
 /**
- * CLASSIC_CONNECT
- * Opens a network socket to the classic
- *
- * @arg: nil
- * @return (int) 0 on sucess, 1 on fail
- *
- */
+* CLASSIC_CONNECT
+* Opens a network socket to the classic
+*
+* @arg: nil
+* @return (int) 0 on sucess, 1 on fail
+*
+*/
 int classic_connect(void) {
 
-	if (debug) printf("Creating socket...\n");
-	log_message(log_file_path, (char*)"Creating socket... ");
+	if (debug) log_message_debug(log_file_path, (char*)"Creating socket...");
 
 	//get & check host
 	if ((hp = gethostbyname(host)) == NULL) { //this doesnt appear to trip on dead host????
-		if (debug) printf("Host unreachable\n");
-		log_message(log_file_path, (char*)"Host unreachable");
+		log_message_warning(log_file_path, (char*)"Host unreachable.");
 		return(1);
 	}
 
@@ -411,127 +423,81 @@ int classic_connect(void) {
 
 	//get network socket
 	if ((sock = socket(hp->h_addrtype, SOCK_STREAM,0)) < 0) {
-		if (debug) printf("Socket failed\n");
-		log_message(log_file_path, (char*)"Socket failed"); //eg local app tieing up modbus
+		log_message_warning(log_file_path, (char*)"Socket failed."); //eg local app tieing up modbus
 		return(1);
 	}
 
 	//connect to it
 	if (connect(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-		if (debug) printf("Socket connect failed\n");
-		log_message(log_file_path, (char*)"Socket connect failed");
+		log_message_warning(log_file_path, (char*)"Socket connect failed.");
 		return(1);
 	}
 
 	//good to go
-	if (debug) printf("Socket successful\n");
-	log_message(log_file_path, (char*)"Socket successful");
+	log_message_info(log_file_path, (char*)"Socket successful.");
 	return (0);
 }
 
 
 /**
- * MODBUS_REGISTER
- * Gets a single register value from the buffer array
- *
- * @arg (int) register
- * @return (int) value
- *
- **/
+* MODBUS_REGISTER
+* Gets a single register value from the buffer array
+*
+* @arg (int) register
+* @return (int) value
+*
+**/
 unsigned int modbus_register(int reg){
 
-	if (reg>=4101 && reg<=4395)
-	{
-	   return((buf[(reg-4101)<<1]&0xff)<<8 | (buf[((reg-4101)<<1)+1] & 0xff));
+	if (reg>=4101 && reg<=4395) {
+		return((buf[(reg-4101)<<1]&0xff)<<8 | (buf[((reg-4101)<<1)+1] & 0xff));
 	}
 	else if (reg>=16385 && reg<=16390)
 	{
 		return((buf[(reg-16385+4395-4101)<<1]&0xff)<<8 | (buf[((reg-16385+4395-4101)<<1)+1] & 0xff));
-    }
+	}
 	else return (0);
 }
 
 /**
- * LOG_MESSAGE
- * Logger for daemon messages.
- *
- * @arg (char) filename
- * @arg (char) message
- * @return nil
- *
- **/
-void log_message(char *filename, char *message) {
-	printf("%s\n",message);
+* log_message
+* Logger for daemon messages.
+*
+* @arg (char) filename
+* @arg (char) message
+* @return nil
+*
+**/
+void log_message(char *filename, char *message, int level) {
+	printf("<%i>%s\n",level, message);
+	fflush (stdout);
 
-    if(filename) {
-        time(&rawtime);
-        lt= localtime(&rawtime);
-        FILE *fp_log;
-        fp_log= fopen(filename,"a");
-        if (!fp_log) {
-            printf("Cannot write to log file.\n");
-            exit(1);
-        }
-        fprintf(fp_log,"[%04d-%02d-%02d %02d:%02d:%02d] - %s\n",lt->tm_year+1900,lt->tm_mon+1,lt->tm_mday,lt->tm_hour,lt->tm_min,lt->tm_sec, message);
-        fclose(fp_log);
+	if(filename) {
+		time(&rawtime);
+		lt= localtime(&rawtime);
+		FILE *fp_log;
+		fp_log= fopen(filename,"a");
+		if (!fp_log) {
+			printf("<%i>Cannot write to log file.\n", LOG_ERR);
+			exit(1);
+		}
+		fprintf(fp_log,"[%04d-%02d-%02d %02d:%02d:%02d] - %s\n",lt->tm_year+1900,lt->tm_mon+1,lt->tm_mday,lt->tm_hour,lt->tm_min,lt->tm_sec, message);
+		fclose(fp_log);
 	}
 }
 
-/**
- * DAEMONIZE
- * Routines to fork off daemon child process,
- * handles chdir, io, locks and signals etc.
- *
- * @arg (int) sig
- * @return nil
- *
- **/
-void daemonize(void) {
-	int lfp;
-	char str[10];
-
-	/* already a daemon */
-	if (getppid()==1) return;
-	i=fork();
-	if (i<0) exit(1); /* fork error */
-	if (i>0) exit(0); /* parent exits */
-	/* child (daemon) continues */
-	setsid(); /* obtain a new process group */
-	for (i=getdtablesize();i>=0;--i) close(i); /* close all descriptors */
-	i=open("/dev/null",O_RDWR); dup(i); dup(i); /* handle standard I/O */
-	umask(002); /* set newly created file permissions */
-	chdir(working_dir); /* change running directory */
-	lfp=open(lock_file_path,O_RDWR|O_CREAT,0640);
-	if (lfp<0) exit(1); /* can not open */
-	if (lockf(lfp,F_TLOCK,0)<0) exit(0); /* can not lock */
-	/* first instance continues */
-	sprintf(str,"%d\n",getpid());
-	write(lfp,str,strlen(str)); /* record pid to lockfile */
-	signal(SIGCHLD,SIG_IGN); /* ignore child */
-	signal(SIGTSTP,SIG_IGN); /* ignore tty signals */
-	signal(SIGTTOU,SIG_IGN);
-	signal(SIGTTIN,SIG_IGN);
-	signal(SIGHUP,signal_handler); /* catch hangup signal */
-	signal(SIGTERM,signal_handler); /* catch kill signal */
-	log_message(log_file_path,(char*)"Daemon started");
+void log_message_info(char *filename, char *message) {
+	log_message(filename, message, LOG_INFO);
 }
 
-/**
- * SIGNAL_HANDLER
- * Handler to catch signals.
- *
- * @arg (int) sig
- * @return nil
- *
- **/
-void signal_handler(int sig) {
-	switch(sig) {
-		case SIGHUP:
-			log_message(log_file_path,(char*)"Hangup signal caught");
-			break;
-		case SIGTERM:
-			log_message(log_file_path,(char*)"Terminate signal caught");
-			exit(0);
-			break;
-	}
+void log_message_debug(char *filename, char *message) {
+	log_message(filename, message, LOG_DEBUG);
+}
+
+void log_message_warning(char *filename, char *message) {
+	log_message(filename, message, LOG_WARN);
+}
+
+void log_message_error(char *filename, char *message) {
+	log_message(filename, message, LOG_ERR);
 }
