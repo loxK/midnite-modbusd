@@ -27,13 +27,13 @@ gulp.task('build:phar', function () {
 });
 
 gulp.task('watch', function () {
-    gulp.watch('src/midnite-modbusd.c', ['build:modbusd']);
-    gulp.watch('src/newmodbus.c', ['build:newmodbus']);
-    gulp.watch('src/**/*.php', ['build:phar']);
+    gulp.watch('src/midnite-modbusd.c', gulp.series('build:modbusd'));
+    gulp.watch('src/newmodbus.c', gulp.series('build:newmodbus'));
+    gulp.watch('src/**/*.php', gulp.series('build:phar'));
 });
 
-gulp.task('build', ['build:newmodbus', 'build:modbusd', 'build:phar'], function () {
+gulp.task('build', gulp.parallel('build:newmodbus', 'build:modbusd', 'build:phar'), function () {
 });
 
-gulp.task('default', ['build:newmodbus', 'build:modbusd', 'build:phar', 'watch'], function () {
+gulp.task('default', gulp.parallel('build:newmodbus', 'build:modbusd', 'build:phar', 'watch'), function () {
 });
